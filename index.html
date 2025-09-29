@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Daily Status Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 2em auto; }
+    h1 { text-align: center; }
+    form { background: #f4f4f4; padding: 1em; border-radius: 5px; margin-bottom: 2em; }
+    label { display: block; margin: 0.5em 0 0.1em; }
+    input, textarea { width: 100%; padding: 0.5em; margin-bottom: 1em; border: 1px solid #ccc; border-radius: 3px; }
+    button { padding: 0.5em 1em; margin: 0.5em 0.2em; }
+    table { border-collapse: collapse; width: 100%; margin-top: 1em; }
+    th, td { border: 1px solid #ddd; padding: 0.5em; text-align: left; }
+    th { background: #eee; }
+    @media (max-width: 600px) {
+      body { padding: 1em; }
+      table, thead, tbody, th, td, tr { display: block; }
+      th, td { box-sizing: border-box; }
+      tr { margin-bottom: 1em; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Daily Status Tracker</h1>
+  <form id="statusForm">
+    <label for="name">Name</label>
+    <input id="name" required>
+    <label for="date">Date</label>
+    <input id="date" type="date" required>
+    <label for="status">Status/Comments</label>
+    <textarea id="status" rows="2" required></textarea>
+    <label for="done">Done Tasks</label>
+    <textarea id="done" rows="2"></textarea>
+    <label for="pending">Pending Tasks</label>
+    <textarea id="pending" rows="2"></textarea>
+    <button type="submit">Save Status</button>
+  </form>
+  <div>
+    <button onclick="downloadCSV()">Download CSV</button>
+    <button onclick="downloadExcel()">Download Excel</button>
+  </div>
+  <h2>Entries</h2>
+  <div id="records"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.19.3/xlsx.full.min.js"></script>
+  <script>
+    function getToday() {
+      const d = new Date();
+      return d.toISOString().slice(0,10);
+    }
+    document.getElementById('date').value = getToday();
+
+    function getStatuses() {
+      return JSON.parse(localStorage.getItem('dailyStatuses') || '[]');
+    }
+
+    function setStatuses(statuses) {
+      localStorage.setItem('dailyStatuses', JSON.stringify(statuses));
+    }
+
+    function addStatus(status) {
+      const statuses = getStatuses();
+      statuses.push(status);
+      setStatuses(statuses);
+    }
+
+    function handleForm(e) {
+      e.preventDefault();
+      const status = {
+        name: document.getElementById('name').value.trim(),
+        date: document.getElementById('date').value,
+        status: document.getElementById('status').value.trim(),
+        done: document.getElementById('done').value.trim(),
+        pending: document.getElementById('pending').value.trim()
+      };
+      addStatus(status);
+      e.target.reset();
+      document.getElementById('date').value = getToday();
+      renderStatuses();
+    }
+
+    function renderStatuses() {
+      const statuses = getStatuses();
+      if (statuses.length === 0) {
+        document.getElementById('records').innerHTML = "<p>No entries yet.</p>";
+        return;
+      }
+      let html = "<table><thead><tr><th>Name</th><th>Date</th><th>Status</th><th>Done</th><th>Pending</th></tr></thead><tbody>";
+      for (const st of statuses) {
+        html += `<tr>
+          <td>${st.name}</td>
+          <td>${st.date}</td>
+          <td>${st.status}</td>
+          <td>${st.done}</td>
+          <td>${st.pending}</td>
+        </tr>`;
+      }
+      html += "</tbody></table>";
+      document.getElementById('records').innerHTML = html;
+    }
+
+    function downloadCSV() {
+      const statuses = getStatuses();
+      if (statuses.length === 0) return alert("No data to export");
+      let csv = "Name,Date,Status,Done Tasks,Pending Tasks\n";
+      for (const st of statuses) {
+        const row = [st.name, st.date, st.status, st.done, st.pending].map(s => `"${s.replace(/"/g,'""')}"`);
+        csv += row.join(",") + "\n";
+      }
+      const a = document.createElement('a');
+      a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+      a.download = `DailyStatus_${getToday()}.csv`;
+      a.click();
+    }
+
+    function downloadExcel() {
+      const statuses = getStatuses();
+      if (statuses.length === 0) return alert("No data to export");
+      const wsData = [
+        ["Name", "Date", "Status", "Done Tasks", "Pending Tasks"],
+        ...statuses.map(st => [st.name, st.date, st.status, st.done, st.pending])
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Status");
+      XLSX.writeFile(wb, `DailyStatus_${getToday()}.xlsx`);
+    }
+
+    document.getElementById('statusForm').addEventListener('submit', handleForm);
+    renderStatuses();
+  </script>
+</body>
+</html>
